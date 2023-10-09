@@ -12,7 +12,7 @@ contract MoneyMates is Initializable, OwnableUpgradeable {
     uint256 public refFeePercent;
     bool public initialized;
 
-    event Trade(address trader, address subject, bool isBuy, uint256 shareAmount, uint256 ethAmount, uint256 protocolEthAmount, uint256 subjectEthAmount, uint256 supply);
+    event Trade(address indexed trader, address indexed subject, bool indexed isBuy, uint256 shareAmount, uint256 ethAmount, uint256 protocolEthAmount, uint256 subjectEthAmount, uint256 supply);
 
     struct UserInfo {
         address referrer;
