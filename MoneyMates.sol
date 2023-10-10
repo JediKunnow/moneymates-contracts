@@ -29,7 +29,7 @@ contract MoneyMates is Initializable, OwnableUpgradeable {
 
     function initialize(address _feeDestination) public initializer {
         __Ownable_init(_feeDestination);
-        refs[msg.sender].active = true;
+        refs[_feeDestination].active = true;
         setFeeDestination(_feeDestination);
         setProtocolFeePercent(45000000000000000); // 0.045
         setSubjectFeePercent(45000000000000000); // 0.045
