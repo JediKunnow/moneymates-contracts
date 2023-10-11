@@ -12,7 +12,7 @@ contract MoneyMates is Initializable, OwnableUpgradeable {
     uint256 public refFeePercent;
     bool public initialized;
 
-    event Trade(address indexed trader, address indexed subject, bool indexed isBuy, uint256 shareAmount, uint256 ethAmount, uint256 protocolEthAmount, uint256 subjectEthAmount, uint256 supply);
+    event Trade(address indexed trader, address indexed subject, bool indexed isBuy, uint256 shareAmount, uint256 ethAmount, uint256 protocolEthAmount, uint256 subjectEthAmount, uint256 refEthAmount, uint256 supply);
 
     struct UserInfo {
         address referrer;
@@ -107,7 +107,7 @@ contract MoneyMates is Initializable, OwnableUpgradeable {
         require(msg.value >= price + protocolFee + subjectFee, "Insufficient payment");
         sharesBalance[sharesSubject][msg.sender] = sharesBalance[sharesSubject][msg.sender] + amount;
         sharesSupply[sharesSubject] = supply + amount;
-        emit Trade(msg.sender, sharesSubject, true, amount, price, protocolFee, subjectFee, supply + amount);
+        emit Trade(msg.sender, sharesSubject, true, amount, price, protocolFee, subjectFee, refFee, supply + amount);
         (bool success1, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success2, ) = sharesSubject.call{value: subjectFee}("");
         (bool success3, ) = ref.call{value: refFee}("");
@@ -128,7 +128,7 @@ contract MoneyMates is Initializable, OwnableUpgradeable {
         require(sharesBalance[sharesSubject][msg.sender] >= amount, "Insufficient shares");
         sharesBalance[sharesSubject][msg.sender] = sharesBalance[sharesSubject][msg.sender] - amount;
         sharesSupply[sharesSubject] = supply - amount;
-        emit Trade(msg.sender, sharesSubject, false, amount, price, protocolFee, subjectFee, supply - amount);
+        emit Trade(msg.sender, sharesSubject, false, amount, price, protocolFee, subjectFee, refFee, supply - amount);
         (bool success1, ) = msg.sender.call{value: price - protocolFee - subjectFee}("");
         (bool success2, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success3, ) = sharesSubject.call{value: subjectFee}("");
