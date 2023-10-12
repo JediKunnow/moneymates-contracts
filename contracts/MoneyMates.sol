@@ -133,7 +133,7 @@ contract MoneyMates is Initializable, OwnableUpgradeable {
         sharesBalance[sharesSubject][msg.sender] = sharesBalance[sharesSubject][msg.sender] - amount;
         sharesSupply[sharesSubject] = supply - amount;
         emit Trade(msg.sender, sharesSubject, false, amount, price, protocolFee, subjectFee, refFee, supply - amount);
-        (bool success1, ) = msg.sender.call{value: price - protocolFee - subjectFee}("");
+        (bool success1, ) = msg.sender.call{value: price - protocolFee - subjectFee - refFee}("");
         (bool success2, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success3, ) = sharesSubject.call{value: subjectFee}("");
         (bool success4, ) = ref.call{value: refFee}("");
