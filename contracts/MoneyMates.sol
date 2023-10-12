@@ -27,9 +27,9 @@ contract MoneyMates is Initializable, OwnableUpgradeable {
     // User => UserInfo
     mapping(address => UserInfo) public refs;
 
-    constructor() {
-        _disableInitializers();
-    }
+    // constructor() {
+    //     _disableInitializers();
+    // }
 
     function initialize(address _feeDestination) public initializer {
         __Ownable_init(_feeDestination);
