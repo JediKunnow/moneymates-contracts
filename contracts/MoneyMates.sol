@@ -174,6 +174,10 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         (bool success1, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success2, ) = sharesSubject.call{value: subjectFee}("");
         (bool success3, ) = ref.call{value: refFee}("");
+        // FIX: HAL-06
+        if(!success3){
+            (success3, ) = protocolFeeDestination.call{value: refFee}("");
+        }
         // FIX: HAL-03
         if(rest > 0){
             (success4, ) = msg.sender.call{value: rest}("");
@@ -209,6 +213,10 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         (bool success2, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success3, ) = sharesSubject.call{value: subjectFee}("");
         (bool success4, ) = ref.call{value: refFee}("");
+        // FIX: HAL-06
+        if(!success4){
+            (success4, ) = protocolFeeDestination.call{value: refFee}("");
+        }
         require(success1 && success2 && success3 && success4, "Unable to send funds");
     }
 
