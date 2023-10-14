@@ -2,7 +2,6 @@
 
 pragma solidity >=0.8.2 <0.9.0;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-//import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
 contract MoneyMates is Initializable, Ownable2StepUpgradeable {
@@ -13,8 +12,7 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
     uint256 public subjectFeePercent;
     uint256 public refFeePercent;
 
-    // Rate Limit
-    uint256 public shares_rate_limit;
+    uint256 public max_trade_size;
 
     bool public initialized;
 
@@ -25,21 +23,13 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
     event SubjectFeeUpdate(uint256 oldValue, uint256 newValue);
     event ReferralFeeUpdate(uint256 oldValue, uint256 newValue);
     event FeeRecipientUpdate(address indexed feeRecipient);
-    event RateLimitUpdate(uint256 oldValue, uint256 newValue);
+    event MaxTradeSizeUpdate(uint256 oldValue, uint256 newValue);
 
     struct UserInfo {
         address referrer;
         uint256 referredCount;
         bool active;
     }
-
-    // Rate Limit
-    // SharesSubject => (block_number => txcount)
-    mapping(address => mapping(uint256 => uint256)) public rateLimit;
-
-    // Front Run Protection
-    // SharesSubject => (trader => block_number)
-    mapping(address => mapping(address => uint256)) public frontrunProtection;
 
     // SharesSubject => (Holder => Balance)
     mapping(address => mapping(address => uint256)) public sharesBalance;
@@ -56,11 +46,11 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         // FIX: HAL-07, HAL-10
         __Ownable_init(msg.sender);
         refs[msg.sender].active = true;
-        setFeeDestination(_feeDestination);
-        setProtocolFeePercent(45000000000000000); // 0.045
-        setSubjectFeePercent(45000000000000000); // 0.045
-        setRefFeePercent(10000000000000000); // 0.01
-        setRateLimitValue(4);
+        protocolFeeDestination = _feeDestination;
+        protocolFeePercent = 45000000000000000; // 0.045
+        subjectFeePercent = 45000000000000000; // 0.045
+        refFeePercent = 10000000000000000; // 0.01
+        max_trade_size = 10;
         initialized = true;
     }
 
@@ -92,11 +82,10 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         refFeePercent = _feePercent;
     }
 
-    // Rate Limit
-    function setRateLimitValue(uint256 _rateLimitValue) public onlyOwner {
-        require(_rateLimitValue > 0, 'rate limit must be greater than zero');
-        emit RateLimitUpdate(shares_rate_limit, _rateLimitValue);
-        shares_rate_limit = _rateLimitValue;
+    function setMaxTradeSize(uint256 _maxTradeSize) public onlyOwner {
+        require(_maxTradeSize > 0, 'max trade size cannot be zero');
+        emit MaxTradeSizeUpdate(max_trade_size, _maxTradeSize);
+        max_trade_size = _maxTradeSize;
     }
 
     function getPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
@@ -145,10 +134,7 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         require(initialized == true, 'NOT_INITIALIZED_YET');
         require(amount > 0, 'ZERO_AMOUNT');
         require(refs[msg.sender].active == true, "Signup first");
-        // FIX: DoS
-        require(rateLimit[sharesSubject][block.number] <= shares_rate_limit, 'Rate limit exceeded, wait for next block');
-        // FIX: Front Run
-        require(frontrunProtection[sharesSubject][msg.sender] < block.number, 'Frontrun protection is active');
+        require(amount < max_trade_size, 'MAX_AMOUNT');
         address ref = refs[msg.sender].referrer;
         uint256 supply = sharesSupply[sharesSubject];
         require(supply > 0 || sharesSubject == msg.sender, "Only the shares' subject can buy the first share");
@@ -166,14 +152,14 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         }
         sharesBalance[sharesSubject][msg.sender] = sharesBalance[sharesSubject][msg.sender] + amount;
         sharesSupply[sharesSubject] = supply + amount;
-        // FIX: DoS
-        rateLimit[sharesSubject][block.number] += 1;
-        // FIX: Front Run
-        frontrunProtection[sharesSubject][msg.sender] = block.number;
         emit Trade(msg.sender, sharesSubject, true, amount, price, protocolFee, subjectFee, refFee, supply + amount);
         (bool success1, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success2, ) = sharesSubject.call{value: subjectFee}("");
         (bool success3, ) = ref.call{value: refFee}("");
+        // FIX: HAL-06
+        if(!success2){
+            (success2, ) = protocolFeeDestination.call{value: subjectFee}("");
+        }
         // FIX: HAL-06
         if(!success3){
             (success3, ) = protocolFeeDestination.call{value: refFee}("");
@@ -185,14 +171,11 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         require(success1 && success2 && success3 && success4, "Unable to send funds");
     }
 
-    function sellShares(address sharesSubject, uint256 amount) public payable {
+    function sellShares(address sharesSubject, uint256 amount, uint256 sellMinPrice) public payable {
         require(initialized == true, 'NOT_INITIALIZED_YET');
         require(amount > 0, 'ZERO_AMOUNT');
+        require(amount < max_trade_size, 'MAX_AMOUNT');
         require(refs[msg.sender].active == true, "Signup first");
-        // FIX: DoS
-        require(rateLimit[sharesSubject][block.number] <= shares_rate_limit, 'Rate limit exceeded, wait for next block');
-        // FIX: Front Run
-        require(frontrunProtection[sharesSubject][msg.sender] < block.number, 'Frontrun protection is active');
         address ref = refs[msg.sender].referrer;
         uint256 supply = sharesSupply[sharesSubject];
         require(supply > amount, "Cannot sell the last share");
@@ -200,18 +183,21 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         uint256 protocolFee = price * protocolFeePercent / 1 ether;
         uint256 subjectFee = price * subjectFeePercent / 1 ether;
         uint256 refFee = price * refFeePercent / 1 ether;
+        // FIX: HAL-04
+        require(price - protocolFee - subjectFee - refFee >= sellMinPrice, 'Slippage too high');
         require(sharesBalance[sharesSubject][msg.sender] >= amount, "Insufficient shares");
         sharesBalance[sharesSubject][msg.sender] = sharesBalance[sharesSubject][msg.sender] - amount;
         sharesSupply[sharesSubject] = supply - amount;
-        // FIX: DoS
-        rateLimit[sharesSubject][block.number] += 1;
-        // FIX: Front Run
-        frontrunProtection[sharesSubject][msg.sender] = block.number;
         emit Trade(msg.sender, sharesSubject, false, amount, price, protocolFee, subjectFee, refFee, supply - amount);
         // FIX: HAL-02
         (bool success1, ) = msg.sender.call{value: price - protocolFee - subjectFee - refFee}("");
         (bool success2, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success3, ) = sharesSubject.call{value: subjectFee}("");
+        // FIX: HAL-06
+        if(!success3){
+            (success3, ) = protocolFeeDestination.call{value: subjectFee}("");
+        }
+
         (bool success4, ) = ref.call{value: refFee}("");
         // FIX: HAL-06
         if(!success4){
