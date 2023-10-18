@@ -138,7 +138,7 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         require(initialized == true, 'NOT_INITIALIZED_YET');
         require(amount > 0, 'ZERO_AMOUNT');
         require(refs[msg.sender].active == true, "Signup first");
-        require(amount < max_trade_size, 'MAX_AMOUNT');
+        require(amount <= max_trade_size, 'MAX_AMOUNT');
         address ref = refs[msg.sender].referrer;
         uint256 supply = sharesSupply[sharesSubject];
         require(supply > 0 || sharesSubject == msg.sender, "Only the shares' subject can buy the first share");
@@ -170,7 +170,7 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
         }
         // FIX: HAL-03
         if(rest > 0){
-            (success4, ) = protocolFeeDestination.call{value: rest}("");
+            (success4, ) = msg.sender.call{value: rest}("");
         }
         require(success1 && success2 && success3 && success4, "Unable to send funds");
     }
@@ -178,7 +178,7 @@ contract MoneyMates is Initializable, Ownable2StepUpgradeable {
     function sellShares(address sharesSubject, uint256 amount, uint256 sellMinPrice) public payable {
         require(initialized == true, 'NOT_INITIALIZED_YET');
         require(amount > 0, 'ZERO_AMOUNT');
-        require(amount < max_trade_size, 'MAX_AMOUNT');
+        require(amount <= max_trade_size, 'MAX_AMOUNT');
         require(refs[msg.sender].active == true, "Signup first");
         address ref = refs[msg.sender].referrer;
         uint256 supply = sharesSupply[sharesSubject];
